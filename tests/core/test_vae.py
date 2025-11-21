@@ -15,22 +15,18 @@ class TestVAE(unittest.TestCase):
             {
                 "patient_id": "patient-0",
                 "visit_id": "visit-0",
-                "image": os.path.join(
-                    os.path.dirname(__file__), "../../test-resources/core/cameraman.tif"
-                ),
-                "label": "image",
+                "image": torch.randn(1, 128, 128),
+                "label": 1,
             },
             {
                 "patient_id": "patient-1",
                 "visit_id": "visit-1",
-                "image": os.path.join(
-                    os.path.dirname(__file__), "../../test-resources/core/cameraman.tif"
-                ),
-                "label": "image",
+                "image": torch.randn(1, 128, 128),
+                "label": 0,
             },
         ]
 
-        input_schema = {"image": "image"}
+        input_schema = {"image": "tensor"}
         output_schema = {"label": "binary"}
 
         dataset = SampleDataset(
@@ -47,7 +43,7 @@ class TestVAE(unittest.TestCase):
             mode="binary",
             input_type="image",
             input_channel=1,  # assuming grayscale
-            input_size=256,  # adjust based on image
+            input_size=128,  # use 128
             hidden_dim=64,
         )
 
@@ -61,15 +57,19 @@ class TestVAE(unittest.TestCase):
             {
                 "patient_id": "patient-0",
                 "visit_id": "visit-0",
-                "image": os.path.join(
-                    os.path.dirname(__file__), "../../test-resources/core/cameraman.tif"
-                ),
-                "label": "image",
+                "image": torch.rand(1, 128, 128),  # dummy image 0-1
+                "label": 1,
+            },
+            {
+                "patient_id": "patient-1",
+                "visit_id": "visit-1",
+                "image": torch.rand(1, 128, 128),
+                "label": 0,
             },
         ]
 
-        input_schema = {"image": "image"}
-        output_schema = {"label": "regression"}
+        input_schema = {"image": "tensor"}
+        output_schema = {"label": "binary"}
 
         dataset = SampleDataset(
             samples=samples,
@@ -82,10 +82,10 @@ class TestVAE(unittest.TestCase):
             dataset=dataset,
             feature_keys=["image"],
             label_key="label",
-            mode="regression",
+            mode="binary",
             input_type="image",
             input_channel=1,
-            input_size=256,
+            input_size=128,
             hidden_dim=64,
         )
 
@@ -106,13 +106,13 @@ class TestVAE(unittest.TestCase):
                 "patient_id": "patient-0",
                 "visit_id": "visit-0",
                 "conditions": ["cond-33", "cond-86"],
-                "label": [1.0, 2.0],  # dummy
+                "label": 1.0,  # dummy
             },
             {
                 "patient_id": "patient-1",
                 "visit_id": "visit-1",
                 "conditions": ["cond-33"],
-                "label": [0.5, 1.5],
+                "label": 0.5,
             },
         ]
 
@@ -146,7 +146,7 @@ class TestVAE(unittest.TestCase):
                 "patient_id": "patient-0",
                 "visit_id": "visit-0",
                 "conditions": ["cond-33", "cond-86"],
-                "label": [1.0, 2.0],
+                "label": 1.0,
             },
         ]
 
@@ -185,16 +185,21 @@ class TestVAE(unittest.TestCase):
             {
                 "patient_id": "patient-0",
                 "visit_id": "visit-0",
-                "image": os.path.join(
-                    os.path.dirname(__file__), "../../test-resources/core/cameraman.tif"
-                ),
+                "image": torch.rand(1, 128, 128),
                 "conditions": ["cond-33"],
-                "label": "image",
+                "label": 1,
+            },
+            {
+                "patient_id": "patient-1",
+                "visit_id": "visit-1",
+                "image": torch.randn(1, 128, 128),
+                "conditions": ["cond-86"],
+                "label": 0,
             },
         ]
 
-        input_schema = {"image": "image", "conditions": "sequence"}
-        output_schema = {"label": "regression"}
+        input_schema = {"image": "tensor", "conditions": "sequence"}
+        output_schema = {"label": "binary"}
 
         dataset = SampleDataset(
             samples=samples,
@@ -207,10 +212,10 @@ class TestVAE(unittest.TestCase):
             dataset=dataset,
             feature_keys=["image"],
             label_key="label",
-            mode="regression",
+            mode="binary",
             input_type="image",
             input_channel=1,
-            input_size=256,
+            input_size=128,
             hidden_dim=64,
             conditional_feature_keys=["conditions"],
         )

@@ -49,15 +49,13 @@ class VAE(BaseModel):
         conditional_feature_keys: Optional[List[str]] = None,
         **kwargs,
     ):
-        super(VAE, self).__init__(
-            dataset=dataset,
-            feature_keys=feature_keys,
-            label_key=label_key,
-            mode=mode,
-        )
+        super(VAE, self).__init__(dataset=dataset)
         self.input_type = input_type
         self.hidden_dim = hidden_dim
         self.conditional_feature_keys = conditional_feature_keys
+        self.mode = mode
+        self.feature_keys = feature_keys
+        self.label_key = label_key
 
         if input_type == "image":
             assert input_channel is not None and input_size is not None, "For image mode, input_channel and input_size must be provided"
@@ -130,7 +128,8 @@ class VAE(BaseModel):
             self.encoder_rnn = nn.GRU(hidden_dim, hidden_dim, batch_first=True)
             self.mu = nn.Linear(hidden_dim, hidden_dim)
             self.log_std2 = nn.Linear(hidden_dim, hidden_dim)
-            self.decoder_linear = nn.Linear(hidden_dim, hidden_dim)
+            # Assume seq_len=2 for test
+            self.decoder_linear = nn.Linear(hidden_dim, 2 * hidden_dim)
 
         else:
             raise ValueError("input_type must be 'image' or 'timeseries'")
@@ -171,26 +170,21 @@ class VAE(BaseModel):
         if self.input_type == "image":
             x_hat = self.decoder1(z)
         elif self.input_type == "timeseries":
-            x_hat = self.decoder_linear(z)
+            x_hat = self.decoder_linear(z).view(z.size(0), 2, self.hidden_dim)
         return x_hat
     
-    @staticmethod
-    def loss_function(y, x, mu, std): 
-        ERR = F.binary_cross_entropy(y, x, reduction='sum')
+    def loss_function(self, y, x, mu, std):
+        if self.input_type == "image":
+            ERR = F.binary_cross_entropy(y, x, reduction='sum')
+        elif self.input_type == "timeseries":
+            ERR = F.mse_loss(y, x, reduction='sum')
         KLD = -0.5 * torch.sum(1 + torch.log(std**2) - mu**2 - std**2)
         return ERR + KLD
     
     def forward(self, **kwargs) -> Dict[str, torch.Tensor]:
 
         if self.input_type == "image":
-            # concat the info within one batch (batch, channel, height, width)
-            # if the input is a list of numpy array, we need to convert it to tensor
-            if isinstance(kwargs[self.feature_keys[0]][0], np.ndarray):
-                x = torch.tensor(
-                    np.array(kwargs[self.feature_keys[0]]).astype("float16"), device=self.device
-                ).float()
-            else:
-                x = torch.stack(kwargs[self.feature_keys[0]], dim=0).to(self.device)
+            x = kwargs[self.feature_keys[0]].to(self.device)
 
             mu, std = self.encoder(x)
             z = self.sampling(mu, std)
