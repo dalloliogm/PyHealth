@@ -136,3 +136,4 @@ pyhealth/medcode/pretrained_embeddings/kg_emb/examples/pretrained_model
 data/physionet.org/
 examples/chestxray_vae_synthetic.png
 examples/chestxray_vae_comparison.png
+examples/chestxray_vae_conditional.png
