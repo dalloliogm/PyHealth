@@ -137,3 +137,4 @@ data/physionet.org/
 examples/chestxray_vae_synthetic.png
 examples/chestxray_vae_comparison.png
 examples/chestxray_vae_conditional.png
+examples/vae_model.pth
