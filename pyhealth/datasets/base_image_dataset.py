@@ -35,10 +35,10 @@ class BaseImageDataset(BaseDataset):
         **kwargs,
     ) -> None:
         # Expand user path (e.g., ~/Downloads -> /home/user/Downloads)
-        root = os.path.expanduser(root)
+        self.root = os.path.expanduser(root)
 
         super().__init__(
-            root=root,
+            root=self.root,
             dataset_name=dataset_name or "base_image",
             config_path=config_path,
             **kwargs,
