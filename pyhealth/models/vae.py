@@ -128,8 +128,7 @@ class VAE(BaseModel):
             self.encoder_rnn = nn.GRU(hidden_dim, hidden_dim, batch_first=True)
             self.mu = nn.Linear(hidden_dim, hidden_dim)
             self.log_std2 = nn.Linear(hidden_dim, hidden_dim)
-            # Assume seq_len=2 for test
-            self.decoder_linear = nn.Linear(hidden_dim, 2 * hidden_dim)
+            self.decoder_linear = nn.Linear(hidden_dim, hidden_dim)
 
         else:
             raise ValueError("input_type must be 'image' or 'timeseries'")
@@ -170,15 +169,13 @@ class VAE(BaseModel):
         if self.input_type == "image":
             x_hat = self.decoder1(z)
         elif self.input_type == "timeseries":
-            x_hat = self.decoder_linear(z).view(z.size(0), 2, self.hidden_dim)
+            x_hat = self.decoder_linear(z)  # Output shape: (batch, hidden_dim)
         return x_hat
     
-    def loss_function(self, y, x, mu, std, input_type=None):
-        if input_type is None:
-            input_type = self.input_type
-        if input_type == "image":
+    def loss_function(self, y, x, mu, std):
+        if self.input_type == "image":
             ERR = F.binary_cross_entropy(y, x, reduction='sum')
-        elif input_type == "timeseries":
+        elif self.input_type == "timeseries":
             ERR = F.mse_loss(y, x, reduction='sum')
         KLD = -0.5 * torch.sum(1 + torch.log(std**2) - mu**2 - std**2)
         return ERR + KLD
@@ -223,7 +220,7 @@ class VAE(BaseModel):
                 embedded_list.append(h)
             x = torch.cat(embedded_list, dim=-1) if len(embedded_list) > 1 else embedded_list[0]
 
-        loss = self.loss_function(x_rec, x, mu, std, self.input_type)
+        loss = self.loss_function(x_rec, x, mu, std)
         results = {
             "loss": loss,
             "y_prob": x_rec,
