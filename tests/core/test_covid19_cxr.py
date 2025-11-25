@@ -83,5 +83,6 @@ class TestCOVID19CXRDataset(unittest.TestCase):
         # Check that BaseDataset.__init__ was called
         mock_base_init.assert_called_once()
 
+
 if __name__ == "__main__":
     unittest.main()
