@@ -92,6 +92,7 @@ class COVID19CXRDataset(BaseDataset):
         if config_path is None:
             logger.info("No config path provided, using default config")
             config_path = Path(__file__).parent / "configs" / "covid19_cxr.yaml"
+        root = os.path.expanduser(root)
         if not self._check_raw_data_exists(root):
             raise ValueError(
                 f"Raw COVID-19 CXR dataset files not found in {root}. "
