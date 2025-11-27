@@ -174,6 +174,23 @@ class COVID19CXRDataset(BaseDataset):
         ]
         return all(os.path.exists(os.path.join(root, f)) for f in required_files)
 
+    def _check_raw_data_exists(self, root: str) -> bool:
+        """Check if required raw data files exist.
+
+        Args:
+            root: Root directory containing the dataset files.
+
+        Returns:
+            bool: True if all required files exist, False otherwise.
+        """
+        required_files = [
+            "COVID.metadata.xlsx",
+            "Lung_Opacity.metadata.xlsx",
+            "Normal.metadata.xlsx",
+            "Viral Pneumonia.metadata.xlsx",
+        ]
+        return all(os.path.exists(os.path.join(root, f)) for f in required_files)
+
     def set_task(
         self,
         task: BaseTask | None = None,
