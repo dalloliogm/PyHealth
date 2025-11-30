@@ -32,8 +32,6 @@ class VAE(BaseModel):
         hidden_dim: the latent dimension. Default is 128.
         conditional_feature_keys: list of feature keys to use as conditions for generation (optional).
         **kwargs: other parameters.
-
-    Examples:
     """
 
     def __init__(
@@ -57,20 +55,27 @@ class VAE(BaseModel):
         self.feature_keys = feature_keys
         self.label_key = label_key
 
+        # These will be lazily initialized when we see actual tensor sizes
+        self.cond_proj: Optional[nn.Linear] = None   # for conditional metadata → latent
+        self.ts_proj: Optional[nn.Linear] = None     # for timeseries concatenated features → hidden_dim
+
         if input_type == "image":
-            assert input_channel is not None and input_size is not None, "For image mode, input_channel and input_size must be provided"
+            assert input_channel is not None and input_size is not None, \
+                "For image mode, input_channel and input_size must be provided"
+
+            # Embedding model for conditional features only (if used)
             if conditional_feature_keys:
                 self.embedding_model = EmbeddingModel(dataset, embedding_dim=hidden_dim)
 
-            # encoder part
+            # ----- Encoder -----
             if input_size == 128:
                 self.encoder1 = nn.Sequential(
                     ResBlock2D(input_channel, 16, 2, True, True),
                     ResBlock2D(16, 64, 2, True, True),
                     ResBlock2D(64, 256, 2, True, True),
                 )
-                self.mu = nn.Linear(256 * 2 * 2, self.hidden_dim) # for mu
-                self.log_std2 = nn.Linear(256 * 2 * 2, self.hidden_dim) # for log (sigma^2)
+                self.mu = nn.Linear(256 * 2 * 2, self.hidden_dim)
+                self.log_std2 = nn.Linear(256 * 2 * 2, self.hidden_dim)
 
                 self.decoder1 = nn.Sequential(
                     nn.ConvTranspose2d(self.hidden_dim, 256, kernel_size=5, stride=2),
@@ -91,8 +96,8 @@ class VAE(BaseModel):
                     ResBlock2D(16, 64, 2, True, True),
                     ResBlock2D(64, 256, 2, True, True),
                 )
-                self.mu = nn.Linear(256, self.hidden_dim) # for mu
-                self.log_std2 = nn.Linear(256, self.hidden_dim) # for log (sigma^2)
+                self.mu = nn.Linear(256, self.hidden_dim)
+                self.log_std2 = nn.Linear(256, self.hidden_dim)
 
                 self.decoder1 = nn.Sequential(
                     nn.ConvTranspose2d(self.hidden_dim, 128, kernel_size=5, stride=2),
@@ -111,8 +116,8 @@ class VAE(BaseModel):
                     ResBlock2D(16, 64, 2, True, True),
                     # ResBlock2D(64, 256, 2, True, True),
                 )
-                self.mu = nn.Linear(64 * 2 * 2, self.hidden_dim) # for mu
-                self.log_std2 = nn.Linear(64 * 2 * 2, self.hidden_dim) # for log (sigma^2)
+                self.mu = nn.Linear(64 * 2 * 2, self.hidden_dim)
+                self.log_std2 = nn.Linear(64 * 2 * 2, self.hidden_dim)
 
                 self.decoder1 = nn.Sequential(
                     nn.ConvTranspose2d(self.hidden_dim, 64, kernel_size=5, stride=2),
@@ -122,17 +127,22 @@ class VAE(BaseModel):
                     nn.ConvTranspose2d(32, input_channel, kernel_size=6, stride=2),
                     nn.Sigmoid(),
                 )
+            else:
+                raise ValueError("Unsupported input_size for image mode")
 
         elif input_type == "timeseries":
+            # Embedding model for sequence features
             self.embedding_model = EmbeddingModel(dataset, embedding_dim=hidden_dim)
             self.encoder_rnn = nn.GRU(hidden_dim, hidden_dim, batch_first=True)
             self.mu = nn.Linear(hidden_dim, hidden_dim)
             self.log_std2 = nn.Linear(hidden_dim, hidden_dim)
             self.decoder_linear = nn.Linear(hidden_dim, hidden_dim)
-
         else:
             raise ValueError("input_type must be 'image' or 'timeseries'")
-            
+
+    # -------------------------------------------------------------
+    # ENCODER
+    # -------------------------------------------------------------
     def encoder(self, x) -> Tuple[torch.Tensor, torch.Tensor]:
         if self.input_type == "image":
             h = self.encoder1(x)
@@ -140,85 +150,120 @@ class VAE(BaseModel):
             h = h.view(batch_size, -1)
             mu = self.mu(h)
             std = torch.sqrt(torch.exp(self.log_std2(h)))
+
         elif self.input_type == "timeseries":
-            # x is dict of embedded features
-            # assume x is already embedded dict
-            # for simplicity, concatenate all embedded features
+            # x is dict of embedded features from embedding_model
             embedded_list = []
             for key, emb in x.items():
                 if emb.dim() == 3:  # (batch, seq, emb)
-                    # use RNN to aggregate sequence
-                    _, h = self.encoder_rnn(emb)
-                    h = h.squeeze(0)  # (batch, hidden)
+                    _, h_seq = self.encoder_rnn(emb)   # h_seq: (1, batch, hidden_dim)
+                    h = h_seq.squeeze(0)               # (batch, hidden_dim)
                 else:
-                    h = emb  # (batch, emb)
+                    h = emb  # (batch, emb_dim)
                 embedded_list.append(h)
+
             h = torch.cat(embedded_list, dim=-1) if len(embedded_list) > 1 else embedded_list[0]
-            # if multiple, perhaps mean or something, but for now cat and linear
+
+            # Project to hidden_dim once, with a learnable layer
             if h.shape[-1] != self.hidden_dim:
-                h = nn.Linear(h.shape[-1], self.hidden_dim)(h)
+                if self.ts_proj is None:
+                    self.ts_proj = nn.Linear(h.shape[-1], self.hidden_dim).to(h.device)
+                h = self.ts_proj(h)
+
             mu = self.mu(h)
             std = torch.sqrt(torch.exp(self.log_std2(h)))
+
         return mu, std
-    
-    def sampling(self, mu, std) -> torch.Tensor: # reparameterization trick
+
+    # -------------------------------------------------------------
+    # SAMPLING
+    # -------------------------------------------------------------
+    def sampling(self, mu, std) -> torch.Tensor:
         eps = torch.randn_like(std)
         return mu + eps * std
 
+    # -------------------------------------------------------------
+    # DECODER
+    # -------------------------------------------------------------
     def decoder(self, z) -> torch.Tensor:
         if self.input_type == "image":
             x_hat = self.decoder1(z)
         elif self.input_type == "timeseries":
-            x_hat = self.decoder_linear(z)  # Output shape: (batch, hidden_dim)
+            x_hat = self.decoder_linear(z)  # (batch, hidden_dim)
         return x_hat
-    
+
+    # -------------------------------------------------------------
+    # LOSS
+    # -------------------------------------------------------------
     def loss_function(self, y, x, mu, std):
         if self.input_type == "image":
             ERR = F.binary_cross_entropy(y, x, reduction='sum')
         elif self.input_type == "timeseries":
             ERR = F.mse_loss(y, x, reduction='sum')
-        KLD = -0.5 * torch.sum(1 + torch.log(std**2) - mu**2 - std**2)
+
+        # KL divergence term
+        KLD = -0.5 * torch.sum(1 + torch.log(std ** 2) - mu ** 2 - std ** 2)
         return ERR + KLD
-    
+
+    # -------------------------------------------------------------
+    # FORWARD
+    # -------------------------------------------------------------
     def forward(self, **kwargs) -> Dict[str, torch.Tensor]:
 
         if self.input_type == "image":
-            x = kwargs[self.feature_keys[0]].to(self.device)
+            # x: image tensor
+            x = kwargs[self.feature_keys[0]].to(self.device)  # (batch, C, H, W)
 
             mu, std = self.encoder(x)
-            z = self.sampling(mu, std)
+            z = self.sampling(mu, std)  # (batch, hidden_dim)
 
-            # add conditional embeddings if provided
+            # Conditional embeddings (if any)
             if self.conditional_feature_keys:
-                cond_emb = self.embedding_model({k: kwargs[k] for k in self.conditional_feature_keys})
-                # assume cond_emb is dict, concatenate all
-                cond_list = [emb.mean(dim=1) if emb.dim() == 3 else emb for emb in cond_emb.values()]
-                cond_vec = torch.cat(cond_list, dim=-1) if len(cond_list) > 1 else cond_list[0]
-                if cond_vec.shape[-1] != self.hidden_dim:
-                    cond_vec = nn.Linear(cond_vec.shape[-1], self.hidden_dim)(cond_vec)
-                z = z + cond_vec  # or concatenate, but for simplicity add
+                cond_raw = {k: kwargs[k] for k in self.conditional_feature_keys}
+                cond_emb = self.embedding_model(cond_raw)  # dict: key -> tensor
 
-            z = z.unsqueeze(2).unsqueeze(3)
+                # Pool temporal dims if needed and concat
+                cond_list = [
+                    emb.mean(dim=1) if emb.dim() == 3 else emb
+                    for emb in cond_emb.values()
+                ]
+                cond_vec = torch.cat(cond_list, dim=-1) if len(cond_list) > 1 else cond_list[0]
+
+                # Project cond_vec to latent dim with a learnable layer
+                if cond_vec.shape[-1] != self.hidden_dim:
+                    if self.cond_proj is None:
+                        self.cond_proj = nn.Linear(cond_vec.shape[-1], self.hidden_dim).to(cond_vec.device)
+                    cond_vec = self.cond_proj(cond_vec)
+
+                # Simple conditioning: shift latent by conditional vector
+                z = z + cond_vec
+
+            # Prepare for ConvTranspose decoder
+            z = z.unsqueeze(2).unsqueeze(3)  # (batch, hidden_dim, 1, 1)
             x_rec = self.decoder(z)
 
         elif self.input_type == "timeseries":
-            # embed all feature_keys
+            # Embed all feature_keys first
             embedded = self.embedding_model({k: kwargs[k] for k in self.feature_keys})
             mu, std = self.encoder(embedded)
             z = self.sampling(mu, std)
             x_rec = self.decoder(z)
-            # for timeseries, target is the RNN final state used for encoding
-            # extract the target from the encoder computation
+
+            # For reconstruction target x: re-aggregate exactly as in encoder
             embedded_list = []
             for key, emb in embedded.items():
                 if emb.dim() == 3:  # (batch, seq, emb)
-                    # use RNN to aggregate sequence
-                    _, h = self.encoder_rnn(emb)
-                    h = h.squeeze(0)  # (batch, hidden)
+                    _, h_seq = self.encoder_rnn(emb)
+                    h = h_seq.squeeze(0)  # (batch, hidden_dim)
                 else:
-                    h = emb  # (batch, emb)
+                    h = emb
                 embedded_list.append(h)
+
             x = torch.cat(embedded_list, dim=-1) if len(embedded_list) > 1 else embedded_list[0]
+            if x.shape[-1] != self.hidden_dim:
+                if self.ts_proj is None:
+                    self.ts_proj = nn.Linear(x.shape[-1], self.hidden_dim).to(x.device)
+                x = self.ts_proj(x)
 
         loss = self.loss_function(x_rec, x, mu, std)
         results = {
@@ -227,6 +272,7 @@ class VAE(BaseModel):
             "y_true": x,
         }
         return results
+
 
 
 if __name__ == "__main__":
