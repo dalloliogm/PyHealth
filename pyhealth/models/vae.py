@@ -133,7 +133,7 @@ class VAE(BaseModel):
         elif input_type == "timeseries":
             # Embedding model for sequence features
             self.embedding_model = EmbeddingModel(dataset, embedding_dim=hidden_dim)
-            self.encoder_rnn = nn.GRU(hidden_dim, hidden_dim, batch_first=True)
+            self.encoder_rnn = nn.c(hidden_dim, hidden_dim, batch_first=True)
             self.mu = nn.Linear(hidden_dim, hidden_dim)
             self.log_std2 = nn.Linear(hidden_dim, hidden_dim)
             self.decoder_linear = nn.Linear(hidden_dim, hidden_dim)
