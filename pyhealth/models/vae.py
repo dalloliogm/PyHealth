@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from pyhealth.datasets import BaseSignalDataset
+from pyhealth.datasets import SampleDataset
 from pyhealth.models import BaseModel, ResBlock2D
 
 
@@ -35,7 +35,7 @@ class VAE(BaseModel):
 
     def __init__(
         self,
-        dataset: BaseSignalDataset,
+        dataset: SampleDataset,
         feature_keys: List[str],
         label_key: str,
         input_channel: int,
