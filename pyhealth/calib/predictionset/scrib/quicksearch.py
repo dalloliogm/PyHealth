@@ -9,7 +9,9 @@ try:
     pyximport.install()
     from . import quicksearch_cython as cdc
     _CYTHON_ENABLED = True
-except:
+# pyximport re-raises build failures (CompileError, OSError, ...) as ImportError,
+# so this also covers "no C compiler available".
+except ImportError:
     print("This is a warning of potentially slow compute. You could uncomment this line and use the Python implementation instead of Cython.")
 
 __all__ = ['loss_overall', 'loss_classspecific',
@@ -20,7 +22,7 @@ def _thresholding_py(ts, output):
     return pred
 
 def __loss_overall_helper(total_err, total_sure, alpha, N, la, lc, lcs):
-    ambiguity_loss = (1. - total_sure / float(N)) ** 2
+    ambiguity_loss = 1. - total_sure / float(N)
     risk = total_err / float(max(total_sure, 1))
     tempf = risk - alpha
     coverage_loss = np.power(max(tempf, 0), 2)

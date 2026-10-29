@@ -26,6 +26,7 @@ from .label_processor import (
     RegressionLabelProcessor,
 )
 from .multi_hot_processor import MultiHotProcessor
+from .nested_multihot_processor import NestedMultiHotProcessor
 from .nested_sequence_processor import (
     NestedFloatsProcessor,
     NestedSequenceProcessor,
@@ -43,13 +44,19 @@ from .stagenet_processor import (
 )
 from .tensor_processor import TensorProcessor
 from .text_processor import TextProcessor
-from .timeseries_processor import TimeseriesProcessor
+from .timeseries_processor import (
+    TimeseriesBinaryLabelProcessor,
+    TimeseriesLabelProcessor,
+    TimeseriesProcessor,
+    TimeseriesRegressionLabelProcessor,
+)
 from .time_image_processor import TimeImageProcessor
 from .graph_processor import GraphProcessor
 from .audio_processor import AudioProcessor
 from .ignore_processor import IgnoreProcessor
 from .temporal_timeseries_processor import TemporalTimeseriesProcessor
 from .tuple_time_text_processor import TupleTimeTextProcessor
+from .cehr_processor import CehrProcessor, ConceptVocab
 
 # Expose public API
 from .base_processor import (
@@ -65,6 +72,7 @@ __all__ = [
     "LabelProcessor",
     "MultiHotProcessor",
     "NestedFloatsProcessor",
+    "NestedMultiHotProcessor",
     "NestedSequenceProcessor",
     "RawProcessor",
     "SequenceProcessor",
@@ -74,9 +82,14 @@ __all__ = [
     "TensorProcessor",
     "TemporalTimeseriesProcessor",
     "TextProcessor",
+    "TimeseriesBinaryLabelProcessor",
+    "TimeseriesLabelProcessor",
     "TimeseriesProcessor",
+    "TimeseriesRegressionLabelProcessor",
     "TimeImageProcessor",
     "GraphProcessor",
     "AudioProcessor",
     "TupleTimeTextProcessor",
+    "CehrProcessor",
+    "ConceptVocab",
 ]

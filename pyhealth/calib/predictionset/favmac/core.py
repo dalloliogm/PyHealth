@@ -1,16 +1,53 @@
+import logging
 from collections import deque
 from importlib import reload
 
 import numpy as np
 import pandas as pd
 import tqdm
-#from data_utils import INTEGER_SAFE_DELTA
 from scipy.special import expit
 
 from pyhealth.calib.predictionset.favmac import quantiletree
 
+logger = logging.getLogger(__name__)
+
 
 class FavMac:
+    """Online value-maximizing prediction sets with conformal cost control.
+
+    This is the internal calibration/inference engine backing the
+    user-facing :class:`pyhealth.calib.predictionset.FavMac`. It is
+    abstract: ``_greedy_sequence`` must be supplied by a subclass (see
+    :class:`FavMac_GreedyRatio`, the concrete class the public wrapper
+    actually uses). Costs, values, and their proxies must be normalized
+    so cost lies in ``[0, C_max]`` before being passed in here.
+
+    Paper:
+        Lin, Zhen, Shubhendu Trivedi, Cao Xiao, and Jimeng Sun. "Fast
+        Online Value-Maximizing Prediction Sets with Conformal Cost
+        Control." ICML 2023.
+
+    Examples:
+        >>> import numpy as np
+        >>> from pyhealth.calib.predictionset.favmac import AdditiveSetFunction
+        >>> from pyhealth.calib.predictionset.favmac.core import FavMac_GreedyRatio
+        >>> K = 3
+        >>> C_max = float(K)
+        >>> cost_fn = AdditiveSetFunction(np.ones(K) / C_max, mode="cost")
+        >>> util_fn = AdditiveSetFunction(np.ones(K), mode="util")
+        >>> proxy_fn = AdditiveSetFunction(np.ones(K) / C_max, mode="proxy")
+        >>> fm = FavMac_GreedyRatio(
+        ...     cost_fn, util_fn, proxy_fn, target_cost=1.0 / C_max, C_max=1.0)
+        >>> rng = np.random.default_rng(0)
+        >>> for _ in range(30):
+        ...     logit = rng.normal(size=K)
+        ...     y = (rng.uniform(size=K) < 0.4).astype(int)
+        ...     _ = fm.update(logit, y)
+        >>> predset, _ = fm(np.array([1.0, -0.5, 0.2]), update=False)
+        >>> predset
+        array([1, 0, 0])
+    """
+
     def __init__(self, cost_fn, util_fn, proxy_fn, target_cost, delta=None, C_max=1.) -> None:
         self.target_cost = target_cost
         self.delta = delta
@@ -56,7 +93,15 @@ class FavMac:
             cutoff = self.target_cost * (n+1) - self.C_max
             return self.quantiletree.query_cumu_weight(cutoff, prev=False)
         else:
-            cutoff = self.delta * (n+1) - 1# We should assume a violation for the next point? Should we minus 1??
+            # The "-1" reserves one unit of probability mass for the
+            # unseen (N+1)-th test point, the same finite-sample
+            # correction used throughout split conformal prediction (see
+            # e.g. base_conformal._query_quantile's ceil((1-alpha)(N+1))).
+            # This matches the paper's own Appendix B.3, Algorithm 5
+            # (COMPUTE THRESHOLD: q = ((N+1)*delta - 1) / tree.root.sum),
+            # which follows directly from the Tc,delta derivation in the
+            # proof of Theorem 4.6 (Appendix A.4).
+            cutoff = self.delta * (n+1) - 1
             return self.quantiletree.query_cumu_weight(cutoff, prev=False)
 
     def _greedy_sequence(self, pred:np.ndarray):
@@ -109,15 +154,41 @@ class FavMac:
         return self._forward(logit, label)
 
 class FavMac_GreedyRatio(FavMac):
-    #In each step, maximize dValue/dProxy.
+    """FavMac that grows prediction sets greedily by value per unit of proxy cost.
+
+    Each step adds the label with the largest ratio of value gained to proxy
+    cost added. With an additive proxy the whole sequence comes from one sort;
+    otherwise, or if that fails, it falls back to an O(K^2) search.
+
+    Examples:
+        >>> import numpy as np
+        >>> from pyhealth.calib.predictionset.favmac import AdditiveSetFunction
+        >>> w = np.full(3, 1 / 3)
+        >>> fm = FavMac_GreedyRatio(
+        ...     cost_fn=AdditiveSetFunction(w, mode="cost"),
+        ...     util_fn=AdditiveSetFunction(np.ones(3), mode="util"),
+        ...     proxy_fn=AdditiveSetFunction(w, mode="proxy"),
+        ...     target_cost=0.1,
+        ... )
+        >>> sets, _ = fm._greedy_sequence(np.array([0.9, 0.2, 0.6]))
+        >>> [s.tolist() for s in sets]
+        [[0, 0, 0], [1, 0, 0], [1, 0, 1], [1, 1, 1]]
+    """
+
     def _greedy_sequence(self, pred:np.ndarray):
         proxy_fn = lambda _S: self.proxy_fn(_S, pred=pred, target_cost = None if self.delta is None else self.target_cost)
         try:
             if self.proxy_fn.is_additive():
                 Ss, _ = self.util_fn.greedy_maximize_seq(pred=pred, d_proxy = self.proxy_fn.values * (1-pred))
                 return Ss, list(map(proxy_fn, Ss))
-        except:
-            pass
+        except Exception:
+            if not getattr(self, "_fallback_warned", False):
+                logger.warning(
+                    "greedy_maximize_seq failed; falling back to the O(K^2) path. "
+                    "If the predictions contain NaN, the fallback will not recover either.",
+                    exc_info=True,
+                )
+                self._fallback_warned = True
 
         Ss = [np.zeros(len(pred), dtype=int)]
         proxies = [proxy_fn(Ss[0])]

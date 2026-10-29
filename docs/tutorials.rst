@@ -1,24 +1,85 @@
 Tutorials
 ========================
 
- We provide the following tutorials to help users get started with our pyhealth. Please bear with us as we update the documentation on how to use pyhealth 2.0.
+Tutorial series
+---------------
+
+A step-by-step series for PyHealth 2.1, from a first model to contributing to
+PyHealth. Each notebook opens in Google Colab, installs PyHealth 2.1.0, and
+uses public or synthetic data, so no credentials are needed. Most run on a free
+CPU runtime. Tutorials 00, 04 and 07 open on a free T4 GPU runtime and also run
+on a CPU (04 and 07 with smaller settings). The same notebooks are listed on
+`pyhealth.dev <https://pyhealth.dev/tutorials.html>`_.
+
+.. list-table::
+   :widths: 40 60
+   :header-rows: 1
+
+   * - Notebook
+     - What you will learn
+   * - `00. Quickstart: a complete clinical prediction study <https://colab.research.google.com/drive/1KXloapcMeYubw4dT_fPJKTY1pepH2vvl>`_
+     - In-hospital mortality from start to finish: data figures, a Table 1 of the cohort, logistic regression, RNN and XGBoost with confidence intervals and calibration, SHAP, subgroups, and every table and figure exported. Opens on a T4 GPU.
+   * - `01. Datasets: patients, events and your own data <https://colab.research.google.com/drive/1azBqFS_vrJxoYMxP4M_dAIDcrU92uNDv>`_
+     - Exploring patients and events, YAML configs, caching, and loading your own CSV files.
+   * - `02. Tasks and processors <https://colab.research.google.com/drive/1ndi6HGnC_l_1s23LUmzcICPgfc-cJn2N>`_
+     - Writing your own task and what each processor turns raw values into.
+   * - `03. Training and evaluating models properly <https://colab.research.google.com/drive/1dCOzL7JVmxgXqNw4wLny3L3z_L0ivyXi>`_
+     - Leakage-free patient splits, early stopping, class imbalance, calibration and bootstrap confidence intervals.
+   * - `04. Choosing a model <https://colab.research.google.com/drive/1hHJ1Ll6lQIq95EnRzn3jC9V2XeP-0lU2>`_
+     - Logistic regression, MLP, RNN, Transformer, RETAIN and an XGBoost baseline, compared on one patient split. Opens on a T4 GPU.
+   * - `05. Interpreting predictions <https://colab.research.google.com/drive/1sS0kvQ51NUue_f4p1mFlsKV6pvhdc_AD>`_
+     - Exact TreeSHAP, Integrated Gradients, and checking that explanations are faithful.
+   * - `06. Medical codes <https://colab.research.google.com/drive/1P_yEVCeza0SRtvI800fOdfLlhEwg1Wsh>`_
+     - Code lookups, ICD-9/ICD-10 translation, CCS and ATC groupers, and code mapping inside tasks.
+   * - `07. Clinical text <https://colab.research.google.com/drive/1Q9TrbXxitZ8Cr1R9G2XyWTolooQYq-lg>`_
+     - Fine-tuning language models for specialty classification and ICD coding, label distributions, and checks against simple baselines. Opens on a T4 GPU.
+   * - `08. Contributing a dataset or task <https://colab.research.google.com/drive/1tuiooZgK-rR50NdCG9Ylq5HNgqSUBwvE>`_
+     - Dataset classes, file-based data, tests and the pull request checklist.
+
+What's new in PyHealth 2.1
+--------------------------
+
+Already using PyHealth? Three short notebooks, about 10 minutes each on a free
+CPU runtime, walk through the main 2.1 features on runnable examples. For the
+full list of changes, see the
+`release notes <https://github.com/sunlabuiuc/PyHealth/releases/tag/v2.1.0>`_.
+
+.. list-table::
+   :widths: 40 60
+   :header-rows: 1
+
+   * - Notebook
+     - What you will learn
+   * - `1/3. Splits you can trust, runs you can repeat <https://colab.research.google.com/drive/1yqgMaVuGWw6IGjDi6L_S7MHp087A2fWg>`_
+     - Leakage-free ``PatientSplit``, four-way splits with a calibration set, and reproducible training.
+   * - `2/3. Calibration, confidence intervals and imbalanced outcomes <https://colab.research.google.com/drive/1uzdKvu8Gf5snQI5uURh9iBJojGFduc3F>`_
+     - Brier score, observed/expected ratio, calibration slope and intercept, patient-level bootstrap intervals and ``set_pos_weight``.
+   * - `3/3. XGBoost with exact explanations, medical-code translation and new processors <https://colab.research.google.com/drive/1rx6J10qVlXbLphG-sn3yhddWXT21uZXK>`_
+     - ``XGBoostModel`` with exact TreeSHAP, ICD-9/ICD-10 and CCSR mapping, and ``nested_multihot``.
+
+Earlier tutorials
+-----------------
+
+The notebooks below were written for earlier PyHealth versions; prefer the
+series above.
 
 
-`Tutorial 0: Introduction to pyhealth.data <https://colab.research.google.com/drive/1y9PawgSbyMbSSMw1dpfwtooH7qzOEYdN?usp=sharing>`_  `[Video] <https://www.youtube.com/watch?v=Nk1itBoLOX8&list=PLR3CNIF8DDHJUl8RLhyOVpX_kT4bxulEV&index=2>`_ 
 
-`Tutorial 1: Introduction to pyhealth.datasets <https://colab.research.google.com/drive/1voSx7wEfzXfEf2sIfW6b-8p1KqMyuWxK?usp=sharing>`_  `[Video (PyHealth 1.16)] <https://www.youtube.com/watch?v=c1InKqFJbsI&list=PLR3CNIF8DDHJUl8RLhyOVpX_kT4bxulEV&index=3>`_ 
+`Tutorial 0: Introduction to pyhealth.data <https://colab.research.google.com/drive/17nOzjIjKiAbC8bsntZ3h9xy2Vq4bKpuv?usp=sharing>`_  `[Video] <https://www.youtube.com/watch?v=Nk1itBoLOX8&list=PLR3CNIF8DDHJUl8RLhyOVpX_kT4bxulEV&index=2>`_ 
 
-`Tutorial 2: Introduction to pyhealth.tasks <https://colab.research.google.com/drive/1kKkkBVS_GclHoYTbnOtjyYnSee79hsyT?usp=sharing>`_  `[Video (PyHealth 1.16)] <https://www.youtube.com/watch?v=CxESe1gYWU4&list=PLR3CNIF8DDHJUl8RLhyOVpX_kT4bxulEV&index=4>`_ 
+`Tutorial 1: Introduction to pyhealth.datasets <https://colab.research.google.com/drive/1vI_oljc7rU5ocsC26ITM7HUgD5SGZkFE?usp=sharing>`_  `[Video (PyHealth 1.16)] <https://www.youtube.com/watch?v=c1InKqFJbsI&list=PLR3CNIF8DDHJUl8RLhyOVpX_kT4bxulEV&index=3>`_ 
 
-`Tutorial 3: Introduction to pyhealth.models <https://colab.research.google.com/drive/1LcXZlu7ZUuqepf269X3FhXuhHeRvaJX5?usp=sharing>`_  `[Video] <https://www.youtube.com/watch?v=fRc0ncbTgZA&list=PLR3CNIF8DDHJUl8RLhyOVpX_kT4bxulEV&index=6>`_ 
+`Tutorial 2: Introduction to pyhealth.tasks <https://colab.research.google.com/drive/1QB0acnGb-wOuK53UNSgHxjCW74QeYjUl?usp=sharing>`_  `[Video (PyHealth 1.16)] <https://www.youtube.com/watch?v=CxESe1gYWU4&list=PLR3CNIF8DDHJUl8RLhyOVpX_kT4bxulEV&index=4>`_ 
 
-`Tutorial 4: Introduction to pyhealth.trainer <https://colab.research.google.com/drive/1L1Nz76cRNB7wTp5Pz_4Vp4N2eRZ9R6xl?usp=sharing>`_  `[Video] <https://www.youtube.com/watch?v=5Hyw3of5pO4&list=PLR3CNIF8DDHJUl8RLhyOVpX_kT4bxulEV&index=7>`_ 
+`Tutorial 3: Introduction to pyhealth.models <https://colab.research.google.com/drive/1cUTSfFL1wLUXDBtJGTAWntolvcmxrDGo?usp=drive_link>`_  `[Video] <https://www.youtube.com/watch?v=fRc0ncbTgZA&list=PLR3CNIF8DDHJUl8RLhyOVpX_kT4bxulEV&index=6>`_ 
 
-`Tutorial 5: Introduction to pyhealth.metrics <https://colab.research.google.com/drive/1Mrs77EJ92HwMgDaElJ_CBXbi4iABZBeo?usp=sharing>`_  `[Video] <https://www.youtube.com/watch?v=d-Kx_xCwre4&list=PLR3CNIF8DDHJUl8RLhyOVpX_kT4bxulEV&index=8>`_
+`Tutorial 4: Introduction to pyhealth.trainer <https://colab.research.google.com/drive/1up_SL0BxxHPO9pmjKQ98w1GbpiB7LySp?usp=drive_link>`_  `[Video] <https://www.youtube.com/watch?v=5Hyw3of5pO4&list=PLR3CNIF8DDHJUl8RLhyOVpX_kT4bxulEV&index=7>`_ 
 
-`Tutorial 6: Introduction to pyhealth.tokenizer <https://colab.research.google.com/drive/1bDOb0A5g0umBjtz8NIp4wqye7taJ03D0?usp=sharing>`_ `[Video] <https://www.youtube.com/watch?v=CeXJtf0lfs0&list=PLR3CNIF8DDHJUl8RLhyOVpX_kT4bxulEV&index=10>`_
+`Tutorial 5: Introduction to pyhealth.metrics <https://colab.research.google.com/drive/1bO0h5BR62_kQ7zFOgzQmt5vb8jqJ0rV-?usp=drive_link>`_  `[Video] <https://www.youtube.com/watch?v=d-Kx_xCwre4&list=PLR3CNIF8DDHJUl8RLhyOVpX_kT4bxulEV&index=8>`_
 
-`Tutorial 7: Introduction to pyhealth.medcode <https://colab.research.google.com/drive/1xrp_ACM2_Hg5Wxzj0SKKKgZfMY0WwEj3?usp=sharing>`_ `[Video] <https://www.youtube.com/watch?v=MmmfU6_xkYg&list=PLR3CNIF8DDHJUl8RLhyOVpX_kT4bxulEV&index=9>`_
+`Tutorial 6: Introduction to pyhealth.tokenizer <https://colab.research.google.com/drive/1jhJ11MLUafhflQAz8HSrWiOEYlIhhvc_?usp=sharing>`_ `[Video] <https://www.youtube.com/watch?v=CeXJtf0lfs0&list=PLR3CNIF8DDHJUl8RLhyOVpX_kT4bxulEV&index=10>`_
+
+`Tutorial 7: Introduction to pyhealth.medcode <https://colab.research.google.com/drive/1Tw1AUS53fotH1EYr4Abp7qYN3zDBeUbC?usp=drive_link>`_ `[Video] <https://www.youtube.com/watch?v=MmmfU6_xkYg&list=PLR3CNIF8DDHJUl8RLhyOVpX_kT4bxulEV&index=9>`_
 
 
 Data Access Guide
@@ -40,6 +101,7 @@ Additionally, for detailed tutorials on accessing PhysioNet and MIMIC datasets, 
 `Pipeline 5: Readmission Prediction <https://colab.research.google.com/drive/1h0pAymUlPQfkLFryI9QI37-HAW1tRxGZ?usp=sharing>`_ 
 
 .. `Pipeline 5: Phenotype Prediction <https://colab.research.google.com/drive/10CSb4F4llYJvv42yTUiRmvSZdoEsbmFF>`_ 
+
 Multimodal & Smart Processors
 ------------------------------
 
@@ -126,7 +188,7 @@ These examples are located in ``examples/readmission/``.
      - RNN for readmission prediction on MIMIC-III
    * - ``readmission/readmission_mimic3_fairness.py``
      - Fairness-aware readmission prediction on MIMIC-III
-    * - ``readmission/readmission_omop_rnn.py``
+   * - ``readmission/readmission_omop_rnn.py``
      - RNN for readmission prediction on OMOP dataset
 
 Survival Prediction

@@ -5,6 +5,8 @@ from typing import Dict, Optional, Tuple
 
 import torch
 
+from pyhealth.utils import _seeded_by
+
 from pyhealth.models import BaseModel
 from pyhealth.interpret.api import Interpretable
 from .base_interpreter import BaseInterpreter
@@ -135,6 +137,7 @@ class Shap(BaseInterpreter):
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+    @_seeded_by("random_seed")
     def attribute(
         self,
         baseline: Optional[Dict[str, torch.Tensor]] = None,
@@ -176,10 +179,6 @@ class Shap(BaseInterpreter):
             ... )
             >>> print(shap_values['x_continuous'])  # Shape: (1, 3)
         """
-        # Set random seed for reproducibility if specified
-        if self.random_seed is not None:
-            torch.manual_seed(self.random_seed)
-
         device = next(self.model.parameters()).device
 
         # Filter kwargs to only include model feature keys and ensure they are tuples
@@ -220,33 +219,7 @@ class Shap(BaseInterpreter):
         # Extract and prepare inputs
         base_logits = self.model.forward(**inputs)["logit"]
 
-        # Enforce target class selection for multi-class models to avoid class flipping
-        if self._prediction_mode() == "binary":
-            if target_class_idx is not None:
-                target = torch.tensor([target_class_idx], device=device)
-            else:
-                target = (torch.sigmoid(base_logits) > 0.5).long()
-        elif self._prediction_mode() == "multiclass":
-            if target_class_idx is not None:
-                target = torch.nn.functional.one_hot(
-                    torch.tensor(target_class_idx, device=device),
-                    num_classes=base_logits.shape[-1],
-                )
-            else:
-                target = torch.argmax(base_logits, dim=-1)
-                target = torch.nn.functional.one_hot(
-                    target, num_classes=base_logits.shape[-1]
-                )
-        elif self._prediction_mode() == "multilabel":
-            if target_class_idx is not None:
-                target = torch.nn.functional.one_hot(
-                    torch.tensor(target_class_idx, device=device),
-                    num_classes=base_logits.shape[-1],
-                )
-            else:
-                target = torch.sigmoid(base_logits) > 0.5
-        else:
-            raise ValueError("Unsupported prediction mode for SHAP attribution.")
+        target_indices = self._resolve_target_indices(base_logits, target_class_idx)
 
         if baseline is None:
             baselines = self._generate_background_samples(
@@ -295,7 +268,7 @@ class Shap(BaseInterpreter):
             xs=values,
             bs=baselines,
             n_features=n_features,
-            target=target,
+            target_indices=target_indices,
         )
 
         return self._map_to_input_shapes(out, shapes)
@@ -309,7 +282,7 @@ class Shap(BaseInterpreter):
         xs: Dict[str, torch.Tensor],
         bs: Dict[str, torch.Tensor],
         n_features: dict[str, int],
-        target: torch.Tensor,
+        target_indices: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
         """Compute SHAP values using the Kernel SHAP approximation method.
 
@@ -325,7 +298,7 @@ class Shap(BaseInterpreter):
             xs: Dictionary of input values (or embeddings).
             bs: Dictionary of baseline values (or embeddings).
             n_features: Dictionary mapping feature keys to feature counts.
-            target: Target tensor for prediction comparison.
+            target_indices: [batch] tensor of target class indices.
 
         Returns:
             Dictionary mapping feature keys to SHAP value tensors.
@@ -353,7 +326,7 @@ class Shap(BaseInterpreter):
                 coalition, keys, n_features, batch_size
             )
             perturb = self._create_perturbed_sample(xs, bs, gates)
-            pred = self._evaluate_sample(inputs, perturb, target)
+            pred = self._evaluate_sample(inputs, perturb, target_indices)
 
             coalition_vectors.append(coalition.float())
             coalition_preds.append(pred.detach())
@@ -374,7 +347,7 @@ class Shap(BaseInterpreter):
                 coalition, keys, n_features, batch_size
             )
             perturb = self._create_perturbed_sample(xs, bs, gates)
-            pred = self._evaluate_sample(inputs, perturb, target)
+            pred = self._evaluate_sample(inputs, perturb, target_indices)
 
             coalition_vectors.append(coalition.float())
             coalition_preds.append(pred.detach())
@@ -480,7 +453,7 @@ class Shap(BaseInterpreter):
         self,
         inputs: dict[str, tuple[torch.Tensor, ...]],
         perturb: dict[str, torch.Tensor],
-        target: torch.Tensor,
+        target_indices: torch.Tensor,
     ) -> torch.Tensor:
         """Evaluate model prediction for a perturbed sample.
 
@@ -492,9 +465,7 @@ class Shap(BaseInterpreter):
         Args:
             inputs: Original input tuples from the dataloader.
             perturb: Dictionary of perturbed value tensors.
-            target: Target tensor used to select which class prediction to
-                return.  For binary this is a 0/1 scalar or (batch,1) tensor;
-                for multiclass/multilabel it is a one-hot vector.
+            target_indices: [batch] tensor of target class indices.
 
         Returns:
             Target-class prediction scalar per batch item, shape (batch_size,).
@@ -537,56 +508,9 @@ class Shap(BaseInterpreter):
             # model's regular forward pass handle embedding internally.
             logits = self.model.forward(**inputs)["logit"]
 
-        return self._extract_target_prediction(logits, target)
-
-    def _extract_target_prediction(
-        self,
-        logits: torch.Tensor,
-        target: torch.Tensor,
-    ) -> torch.Tensor:
-        """Extract the model's prediction for the target class.
-
-        Kernel SHAP decomposes f(x) ≈ φ₀ + Σ φᵢ zᵢ via weighted least squares.
-        Using **raw logits** (unbounded) rather than probabilities (bounded
-        [0, 1]) is critical: sigmoid compression squashes coalition differences
-        in the saturated regions, producing uniformly small SHAP values and
-        degraded feature rankings.
-
-        Args:
-            logits: Raw model logits, shape (batch_size, n_classes) or
-                (batch_size, 1).
-            target: Target indicator.  Binary: scalar/tensor with 0 or 1.
-                Multiclass: one-hot tensor.  Multilabel: multi-hot tensor.
-
-        Returns:
-            Scalar prediction per batch item, shape (batch_size,).
-        """
-        mode = self._prediction_mode()
-
-        if mode == "binary":
-            # Use raw logit — not sigmoid probability — to preserve the
-            # dynamic range that Kernel SHAP's linear decomposition needs.
-            logit = logits.squeeze(-1)  # (batch,)
-            t = target.float()
-            if t.dim() > 1:
-                t = t.squeeze(-1)
-            # target=1  →  logit   (higher logit ⇒ more positive class)
-            # target=0  → −logit   (higher value ⇒ more negative class)
-            return t * logit + (1 - t) * (-logit)
-
-        elif mode == "multiclass":
-            # target is one-hot; dot-product extracts the target-class logit
-            return (target.float() * logits).sum(dim=-1)  # (batch,)
-
-        elif mode == "multilabel":
-            # target is multi-hot; average logits over active labels
-            t = target.float()
-            n_active = t.sum(dim=-1).clamp(min=1)  # avoid div-by-zero
-            return (t * logits).sum(dim=-1) / n_active  # (batch,)
-
-        else:
-            # regression or unknown — just return the logit
-            return logits.squeeze(-1)
+        return logits.gather(
+            1, target_indices.unsqueeze(1)
+        ).squeeze(1)
 
     # ------------------------------------------------------------------
     # Weighted least squares solver

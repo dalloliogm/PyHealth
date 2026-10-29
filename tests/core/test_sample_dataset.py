@@ -1,7 +1,8 @@
 import unittest
-import pickle
-import random
-from pyhealth.datasets.sample_dataset import create_sample_dataset
+from pathlib import Path
+
+from pyhealth.datasets.sample_dataset import SampleDataset, create_sample_dataset
+
 
 class TestSampleDatasetParity(unittest.TestCase):
     def setUp(self):
@@ -83,6 +84,30 @@ class TestSampleDatasetParity(unittest.TestCase):
         for d, m in zip(list_disk, list_mem):
             self.assertEqual(d["feature"], m["feature"])
 
+    def test_subset_rebuilds_index_mappings(self):
+        ds_disk, ds_mem = self._get_datasets()
+
+        for dataset in (ds_disk, ds_mem):
+            subset = dataset.subset([5, 2, 15])
+            self.assertEqual(
+                subset.patient_to_index,
+                {"p5": [0], "p2": [1], "p15": [2]},
+            )
+            self.assertEqual(
+                subset.record_to_index,
+                {"r5": [0], "r2": [1], "r15": [2]},
+            )
+
+            nested_subset = subset.subset([2, 0])
+            self.assertEqual(
+                nested_subset.patient_to_index,
+                {"p15": [0], "p5": [1]},
+            )
+            self.assertEqual(
+                nested_subset.record_to_index,
+                {"r15": [0], "r5": [1]},
+            )
+
     def test_set_shuffle(self):
         ds_disk, ds_mem = self._get_datasets()
         
@@ -118,6 +143,38 @@ class TestSampleDatasetParity(unittest.TestCase):
         for i in range(20):
             self.assertEqual(items_disk_ordered[i]["feature"], i)
             self.assertEqual(items_mem_ordered[i]["feature"], i)
+
+    def test_close_preserves_caller_owned_directory(self):
+        owner, _ = self._get_datasets()
+        path = Path(owner.path)
+        dataset = SampleDataset(path=str(path))
+
+        try:
+            dataset.close()
+            self.assertTrue(path.exists())
+            reopened = SampleDataset(path=str(path))
+            self.assertEqual(reopened[0]["feature"], 0)
+        finally:
+            owner.close()
+
+    def test_close_preserves_directory_shared_with_subset(self):
+        owner, _ = self._get_datasets()
+        path = Path(owner.path)
+        subset = owner.subset([0])
+
+        try:
+            subset.close()
+            self.assertTrue(path.exists())
+        finally:
+            owner.close()
+
+    def test_close_removes_owned_temporary_directory(self):
+        owner, _ = self._get_datasets()
+        path = Path(owner.path)
+
+        owner.close()
+
+        self.assertFalse(path.exists())
 
 if __name__ == "__main__":
     unittest.main()
