@@ -1,7 +1,11 @@
 ﻿pyhealth.datasets.SHHSDataset
 ===================================
 
-The open Sleep-EDF Database Expanded database, refer to `doc <https://sleepdata.org/datasets/shhs>`_ for more information. 
+Sleep Heart Health Study (SHHS) overnight polysomnography dataset. Individual-level
+recordings are distributed through the National Sleep Research Resource (NSRR)
+and require an approved Data Access and Use Agreement. See the
+`SHHS documentation <https://sleepdata.org/datasets/shhs>`_ for the cohort,
+file structure, and signal details.
 
 .. autoclass:: pyhealth.datasets.SHHSDataset
     :members:
@@ -12,4 +16,4 @@ The open Sleep-EDF Database Expanded database, refer to `doc <https://sleepdata.
 
    
    
-   
+
