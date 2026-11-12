@@ -244,6 +244,8 @@ EEG and Sleep Analysis
      - ContraWR for sleep staging on SleepEDF
    * - ``sleep_staging_shhs_contrawr.py``
      - ContraWR for sleep staging on SHHS
+   * - ``sleep_staging_shhs.py``
+     - PyHealth 2.0 SHHS dataset and sleep-staging task; requires approved NSRR data access
    * - ``sleep_staging_ISRUC_SparcNet.py``
      - SparcNet for sleep staging on ISRUC
    * - ``EEG_events_SparcNet.py``
